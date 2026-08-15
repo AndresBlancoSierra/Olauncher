@@ -86,8 +86,7 @@
     <string name="please_set_olauncher_as_default_first">Primero seleccione Olauncher como su iniciador predeterminado</string>
     <string name="affiliate">Afiliado</string>
     <string name="tip_start_typing_for_rename">Sugerencia: Comienza a escribir para RENOMBRAR la aplicación</string>
-    <string name="hidden_apps_message">Nota: pulsa \'Olauncher\' en la parte superior de esta página de Configuración para encontrar las aplicaciones ocultas.
-        \n\nMás detalles disponibles en nuestra página \'Acerca de\' más abajo.</string>
+    <string name="hidden_apps_message">Aplicación oculta correctamente. No hay ninguna forma de ver o desocultar las aplicaciones ocultas desde el launcher.</string>
     <string name="swipe_down_for">Deslizar hacia abajo para</string>
     <string name="search">Búsqueda</string>
     <string name="notifications">Notificaciones</string>

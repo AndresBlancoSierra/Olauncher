@@ -1,6 +1,7 @@
 [versions]
 appcompat = "1.7.0"
 coreKtx = "1.16.0"
+documentfile = "1.0.1"
 gradle = "8.9.1"
 kotlinStdlib = "2.1.20"
 lifecycleExtensions = "2.2.0"
@@ -12,6 +13,7 @@ workRuntimeKtx = "2.10.1"
 [libraries]
 appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
 gradle = { module = "com.android.tools.build:gradle", version.ref = "gradle" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlinStdlib" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlinStdlib" }

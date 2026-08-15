@@ -5,17 +5,22 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherApps
 import android.content.res.Configuration
+import android.graphics.Typeface
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.bundleOf
@@ -29,6 +34,10 @@ import app.olauncher.R
 import app.olauncher.data.AppModel
 import app.olauncher.data.Constants
 import app.olauncher.data.Prefs
+import app.olauncher.data.SpecialStat
+import app.olauncher.data.VaultLogic
+import app.olauncher.data.VaultRepository
+import app.olauncher.data.VaultSnapshot
 import app.olauncher.databinding.FragmentHomeBinding
 import app.olauncher.helper.appUsagePermissionGranted
 import app.olauncher.helper.dpToPx
@@ -58,6 +67,36 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
 
+    private var vtTypeface: Typeface? = null
+    private var currentSnapshot: VaultSnapshot? = null
+    private var selectedStat: Int = 0
+    private var vaultPaused: Boolean = true
+    private val refreshHandler = Handler(Looper.getMainLooper())
+    private val refreshRunnable = object : Runnable {
+        override fun run() {
+            if (vaultPaused) return
+            loadVault()
+            refreshHandler.postDelayed(this, 60_000L)
+        }
+    }
+
+    private val vaultPicker =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null) {
+                try {
+                    requireContext().contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                prefs.vaultTreeUri = uri.toString()
+                loadVault()
+            }
+        }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         return binding.root
@@ -76,6 +115,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         setHomeAlignment(prefs.homeAlignment)
         initSwipeTouchListener()
         initClickListeners()
+        setupVaultUi()
     }
 
     override fun onResume() {
@@ -84,7 +124,227 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         viewModel.isOlauncherDefault()
         if (prefs.showStatusBar) showStatusBar()
         else hideStatusBar()
+        vaultPaused = false
+        loadVault()
+        refreshHandler.removeCallbacks(refreshRunnable)
+        refreshHandler.postDelayed(refreshRunnable, 60_000L)
     }
+
+    override fun onPause() {
+        vaultPaused = true
+        refreshHandler.removeCallbacks(refreshRunnable)
+        super.onPause()
+    }
+
+    /* ============ VAULT-TEC P.I.P. (datos del vault, SOLO LECTURA) ============ */
+
+    private fun vt(context: Context): Typeface =
+        vtTypeface ?: VtTheme.typeface(context).also { vtTypeface = it }
+
+    private fun setupVaultUi() {
+        val ctx = requireContext()
+        binding.mainLayout.setBackgroundColor(VtTheme.BACKGROUND)
+        binding.clock.typeface = vt(ctx)
+        binding.date.typeface = vt(ctx)
+        binding.clock.setTextColor(VtTheme.GREEN)
+        binding.date.setTextColor(VtTheme.GREEN)
+        binding.clock.textSize = 44f
+        binding.date.textSize = 15f
+        binding.vtHeader.typeface = vt(ctx)
+        binding.vtHeader.setTextColor(VtTheme.GREEN)
+        binding.vtDetail.typeface = vt(ctx)
+        binding.vtDetail.setTextColor(VtTheme.GREEN)
+        binding.vtConnect.typeface = vt(ctx)
+        binding.vtConnect.setTextColor(VtTheme.GREEN)
+        binding.vtConnect.setOnClickListener { vaultPicker.launch(null) }
+        binding.vtHeader.setOnClickListener { loadVault() }
+    }
+
+    private fun loadVault() {
+        if (vaultPaused) return
+        val uri = prefs.vaultTreeUri
+        if (uri.isNullOrEmpty()) {
+            currentSnapshot = null
+            renderVaultConnect()
+            return
+        }
+        val snap = VaultRepository.loadVault(requireContext(), uri)
+        currentSnapshot = snap
+        renderVault()
+    }
+
+    private fun renderVaultConnect() {
+        binding.vtHeader.isVisible = true
+        binding.vtHeader.setTextColor(VtTheme.GREEN)
+        binding.vtHeader.text = "VAULT-TEC P.I.P. 3000"
+        binding.vtConnect.isVisible = true
+        binding.vtSpecialList.isVisible = false
+        binding.vtDetail.isVisible = false
+        binding.vtDetail.text = ""
+    }
+
+    private fun renderVault() {
+        binding.vtConnect.isVisible = false
+        val snap = currentSnapshot
+        binding.vtHeader.isVisible = true
+        binding.vtDetail.isVisible = true
+
+        if (snap == null) {
+            binding.vtSpecialList.isVisible = false
+            binding.vtHeader.text = "VAULT-TEC P.I.P. 3000"
+            binding.vtHeader.setTextColor(VtTheme.RED)
+            binding.vtDetail.setTextColor(VtTheme.RED)
+            binding.vtDetail.text = "— VAULT NO ACCESIBLE —\n(SINCRONIZA EL VAULT E INTENTA DE NUEVO)"
+            return
+        }
+
+        val alert = VaultLogic.activeErrors(snap)
+        binding.vtHeader.text =
+            if (alert.isEmpty()) "VAULT-TEC P.I.P. 3000 — ${VaultLogic.dayName()}"
+            else "ERROR — TAREAS PENDIENTES"
+        binding.vtHeader.setTextColor(if (alert.isEmpty()) VtTheme.GREEN else VtTheme.RED)
+        binding.vtDetail.setTextColor(if (alert.isEmpty()) VtTheme.GREEN else VtTheme.AMBER)
+
+        binding.vtSpecialList.isVisible = true
+        binding.vtSpecialList.removeAllViews()
+        VaultLogic.STATS.forEachIndexed { i, stat ->
+            binding.vtSpecialList.addView(buildStatRow(i, stat, alert))
+        }
+        renderDetail(snap)
+    }
+
+    private fun buildStatRow(index: Int, stat: SpecialStat, alert: List<String>): View {
+        val ctx = requireContext()
+        val tf = vt(ctx)
+        val snap = currentSnapshot ?: VaultSnapshot.EMPTY
+        val value = VaultLogic.displayVal(snap, stat.name)
+        val max = stat.max ?: 365
+        val filled = ((value.toFloat() / max) * 10).toInt().coerceIn(0, 10)
+        val isSel = index == selectedStat
+        val isError = alert.contains(stat.name)
+
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(2.dpToPx(), 3.dpToPx(), 2.dpToPx(), 3.dpToPx())
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { selectedStat = index; renderVault() }
+        }
+
+        val color = when {
+            isError -> VtTheme.RED
+            isSel -> VtTheme.AMBER
+            else -> VtTheme.GREEN
+        }
+        val letter = TextView(ctx).apply {
+            typeface = tf
+            text = " ${stat.letter} "
+            setTextColor(color)
+            textSize = 17f
+            width = 30.dpToPx()
+        }
+        val name = TextView(ctx).apply {
+            typeface = tf
+            text = stat.name
+            setTextColor(color)
+            textSize = 15f
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val segText = VaultLogic.segBar(10, filled)
+        val spn = android.text.SpannableString(segText)
+        spn.setSpan(
+            android.text.style.ForegroundColorSpan(if (isError) VtTheme.RED else VtTheme.GREEN),
+            0, filled.coerceIn(0, segText.length),
+            android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        spn.setSpan(
+            android.text.style.ForegroundColorSpan(VtTheme.GREEN_DIM),
+            filled, segText.length,
+            android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        val segbar = TextView(ctx).apply {
+            typeface = tf
+            textSize = 15f
+            text = spn
+            width = 110.dpToPx()
+        }
+        val txtValue = TextView(ctx).apply {
+            typeface = tf
+            text = value.toString()
+            setTextColor(if (isError) VtTheme.RED else color)
+            textSize = 15f
+            gravity = Gravity.END
+            width = 42.dpToPx()
+        }
+        row.addView(letter)
+        row.addView(name)
+        row.addView(segbar)
+        row.addView(txtValue)
+        return row
+    }
+
+    private fun renderDetail(snap: VaultSnapshot) {
+        binding.vtDetail.typeface = vt(requireContext())
+        val stat = VaultLogic.STATS[selectedStat.coerceIn(0, VaultLogic.STATS.size - 1)]
+        val sb = StringBuilder()
+        when (stat.name) {
+            "GYM" -> {
+                val folder = VaultLogic.todayGymFolder()
+                if (folder == null) {
+                    sb.append("HOY: BREAK — DESCANSO (sin rutina ni puntos)")
+                } else {
+                    sb.append("HOY: GYM — PROGRESIÓN EN KG (").append(folder.uppercase()).append(")\n")
+                    val exs = snap.gym[folder]
+                    if (exs.isNullOrEmpty()) {
+                        sb.append("· sin ejercicios registrados\n")
+                    } else {
+                        for (e in exs.take(4)) {
+                            sb.append("· ").append(e.name).append("  ")
+                            if (e.hasKilos) {
+                                val sign = if ((e.delta ?: 0f) > 0) "+" else ""
+                                sb.append(fmtKg(e.initial)).append("→").append(fmtKg(e.last)).append("kg  ")
+                                    .append(sign).append(fmtKg(e.delta)).append("kg · ").append(e.sessions).append(" ses\n")
+                            } else {
+                                sb.append("— sin kilos\n")
+                            }
+                        }
+                    }
+                }
+            }
+            "READ" -> {
+                sb.append("READ — LIBROS\n")
+                if (snap.readProgress.isEmpty() && snap.readDone.isEmpty()) {
+                    sb.append("· sin libros en Read/Read.md\n")
+                } else {
+                    if (snap.readProgress.isNotEmpty()) {
+                        sb.append("EN PROGRESO\n")
+                        for (b in snap.readProgress.take(3)) sb.append("· [ ] ").append(b).append("\n")
+                    }
+                    if (snap.readDone.isNotEmpty()) {
+                        sb.append("TERMINADOS (").append(snap.readDone.size).append(")\n")
+                        for (b in snap.readDone.take(5)) sb.append("· [x] ").append(b).append("\n")
+                    }
+                }
+            }
+            else -> {
+                val streak = VaultLogic.displayVal(snap, stat.name)
+                sb.append(stat.name).append(" — ").append(stat.desc).append("\n")
+                sb.append("RACHA ").append(streak).append("/").append(stat.max)
+                if (VaultLogic.doneToday(snap, stat.name)) sb.append("  ✓ HOY")
+            }
+        }
+        sb.append("\n▼ TOCA EL TÍTULO PARA ACTUALIZAR")
+        binding.vtDetail.text = sb.toString()
+    }
+
+    private fun fmtKg(v: Float?): String {
+        if (v == null) return "—"
+        return if (v == v.toInt().toFloat()) v.toInt().toString()
+        else String.format(Locale.ROOT, "%.1f", v)
+    }
+
+    /* ============ FIN VAULT-TEC ============ */
 
     override fun onClick(view: View) {
         when (view.id) {

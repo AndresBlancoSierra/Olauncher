@@ -36,6 +36,7 @@ class Prefs(context: Context) {
     private val WALLPAPER_MSG_SHOWN = "WALLPAPER_MSG_SHOWN"
     private val SHARE_SHOWN_TIME = "SHARE_SHOWN_TIME"
     private val SWIPE_DOWN_ACTION = "SWIPE_DOWN_ACTION"
+    private val VAULT_TREE_URI = "VAULT_TREE_URI"
     private val TEXT_SIZE_SCALE = "TEXT_SIZE_SCALE"
     private val PRO_MESSAGE_SHOWN = "PRO_MESSAGE_SHOWN"
     private val HIDE_SET_DEFAULT_LAUNCHER = "HIDE_SET_DEFAULT_LAUNCHER"
@@ -256,6 +257,13 @@ class Prefs(context: Context) {
     var swipeDownAction: Int
         get() = prefs.getInt(SWIPE_DOWN_ACTION, Constants.SwipeDownAction.NOTIFICATIONS)
         set(value) = prefs.edit { putInt(SWIPE_DOWN_ACTION, value).apply() }
+
+    var vaultTreeUri: String?
+        get() = prefs.getString(VAULT_TREE_URI, null)
+        set(value) = prefs.edit {
+            if (value == null) remove(VAULT_TREE_URI)
+            else putString(VAULT_TREE_URI, value)
+        }
 
     var appName1: String
         get() = prefs.getString(APP_NAME_1, "").toString()

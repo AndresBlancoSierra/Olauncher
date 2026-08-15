@@ -84,6 +84,47 @@
         android:paddingVertical="@dimen/home_app_padding_vertical">
 
         <TextView
+            android:id="@+id/vtHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:letterSpacing="0.12"
+            android:text="@string/vt_header"
+            android:visibility="gone"
+            tools:text="VAULT-TEC P.I.P. 3000" />
+
+        <TextView
+            android:id="@+id/vtConnect"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:focusable="true"
+            android:gravity="center"
+            android:maxLines="5"
+            android:paddingVertical="6dp"
+            android:text="@string/vt_connect_prompt"
+            android:visibility="gone"
+            tools:text="TOCA PARA CONECTAR EL VAULT" />
+
+        <LinearLayout
+            android:id="@+id/vtSpecialList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <TextView
+            android:id="@+id/vtDetail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:maxLines="9"
+            android:paddingVertical="2dp"
+            android:visibility="gone"
+            tools:text="GYM — PROGRESIÓN EN KG"
+            tools:visibility="visible" />
+
+        <TextView
             android:id="@+id/homeApp1"
             style="@style/TextLarge"
             android:layout_width="wrap_content"
